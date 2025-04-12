@@ -48,14 +48,6 @@ const BestSeller = () => {
               />
             ))}
           </div>
-          <div className="text-center mt-8">
-            <button
-              className="bg-black hover:bg-purple-600 text-white px-6 py-2 rounded-xl text-sm"
-              onClick={() => navigate('/menu')}
-            >
-              SEE ALL PRODUCTS
-            </button>
-          </div>
         </>
       )}
     </div>

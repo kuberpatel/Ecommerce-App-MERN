@@ -220,7 +220,7 @@ function PlaceOrder() {
             value={formData.zipcode}
             onChange={onChangeHandler}
             className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-            type="text"
+            type="number"
             placeholder="Zipcode"
           />
           <input
@@ -237,7 +237,7 @@ function PlaceOrder() {
           value={formData.phone}
           onChange={onChangeHandler}
           className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-          type="text"
+          type="number"
           placeholder="Phone"
         />
       </div>
