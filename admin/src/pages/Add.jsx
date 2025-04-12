@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import Navbar from '../components/navbar'
+import Navbar from '../components/Navbar'
 import { assets } from '../assets/assets'
 import axios from 'axios'
 import { backendUrl } from '../App'
