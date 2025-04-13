@@ -91,4 +91,30 @@ const adminLogin = async (req, res) => {
   } catch (error) {}
 }
 
-export { loginUser, registerUser, adminLogin }
+// Add this new controller function
+const getUserProfile = async (req, res) => {
+  try {
+    const userId = req.body.userId // This comes from the auth middleware
+    const user = await userModel.findById(userId).select('-password') // Exclude password
+    
+    if (!user) {
+      return res.json({ 
+        success: false, 
+        message: 'User not found' 
+      })
+    }
+
+    res.json({ 
+      success: true, 
+      user 
+    })
+  } catch (error) {
+    console.error('Error fetching user profile:', error)
+    res.json({ 
+      success: false, 
+      message: error.message 
+    })
+  }
+}
+
+export { loginUser, registerUser, adminLogin, getUserProfile }

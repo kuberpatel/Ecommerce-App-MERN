@@ -99,6 +99,10 @@ const placeOrderStripe = async (req, res) => {
       cancel_url: `${origin}/verify?success=false&orderId=${newOrder._id}`,
       line_items,
       mode: 'payment',
+      metadata: {
+        orderId: newOrder._id.toString(),
+        userId: userId
+      }
     })
 
     res.json({ success: true, session_url: session.url })
@@ -109,26 +113,63 @@ const placeOrderStripe = async (req, res) => {
 }
 
 // Verify Stripe
-const verifyStripe = async (req,res) => {
-    const {orderId, success, userId} = req.body
-    try {
-        if(success === 'true'){
-            await orderModel.findByIdAndUpdate(orderId, {payment:true});
-            await userModel.findByIdAndUpdate(userId, {cartData: {}})
-            res.json({success: true})
-        }else{
-            await orderModel.findByIdAndDelete(orderId)
-            res.json({success:false, message:error.message})
-        }
-        
-    } catch (error) {
-      console.log(error)
-      res.json({success:false,message:error.message})
-        
+const verifyStripe = async (req, res) => {
+  const { orderId, success } = req.body
+  const userId = req.body.userId // This comes from auth middleware
+
+  try {
+    // First check if the order exists and hasn't been verified already
+    const order = await orderModel.findById(orderId)
+    if (!order) {
+      return res.json({ 
+        success: false, 
+        message: 'Order not found' 
+      })
     }
 
-}
+    // If already verified, return success
+    if (order.payment === true) {
+      return res.json({ 
+        success: true, 
+        message: 'Payment already verified' 
+      })
+    }
 
+    if (success === 'true') {
+      // Update order status
+      await orderModel.findByIdAndUpdate(orderId, { 
+        payment: true,
+        status: 'Payment Confirmed'
+      })
+      
+      // Clear user's cart
+      await userModel.findByIdAndUpdate(userId, { 
+        cartData: {} 
+      })
+      
+      res.json({ 
+        success: true, 
+        message: 'Payment verified successfully' 
+      })
+    } else {
+      // If payment failed, mark the order as failed
+      await orderModel.findByIdAndUpdate(orderId, { 
+        status: 'Payment Failed' 
+      })
+      
+      res.json({ 
+        success: false, 
+        message: 'Payment verification failed' 
+      })
+    }
+  } catch (error) {
+    console.error('Stripe verification error:', error)
+    res.json({ 
+      success: false, 
+      message: 'Payment verification failed' 
+    })
+  }
+}
 
 // place order using razorpay 
 const placeOrderRazorpay = async (req, res) => {
@@ -232,6 +273,55 @@ const updateStatus = async (req, res) => {
   }
 }
 
+// Update the deleteOrder function
+const deleteOrder = async (req, res) => {
+  try {
+    const { orderId } = req.body;
+
+    const order = await orderModel.findById(orderId);
+
+    if (!order) {
+      return res.json({
+        success: false,
+        message: "Order not found"
+      });
+    }
+
+    // Optional: Add additional checks before deletion
+    // For example, prevent deletion of delivered orders older than X days
+    const orderDate = new Date(order.date);
+    const daysSinceOrder = (Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24);
+    
+    if (order.status === "Delivered" && daysSinceOrder > 30) {
+      return res.json({
+        success: false,
+        message: "Cannot delete orders that were delivered more than 30 days ago"
+      });
+    }
+
+    // If payment was made, ensure proper status before deletion
+    if (order.payment && !["Refunded", "Cancelled"].includes(order.status)) {
+      return res.json({
+        success: false,
+        message: "Paid orders must be refunded or cancelled before deletion"
+      });
+    }
+
+    await orderModel.findByIdAndDelete(orderId);
+
+    res.json({
+      success: true,
+      message: "Order deleted successfully"
+    });
+  } catch (error) {
+    console.error('Delete order error:', error);
+    res.json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 // exports
 export {
   placeOrder,
@@ -241,5 +331,6 @@ export {
   userOrders,
   updateStatus,
   verifyStripe,
-  verifyRazorpay
+  verifyRazorpay,
+  deleteOrder
 }
