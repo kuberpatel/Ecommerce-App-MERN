@@ -1,6 +1,6 @@
 // App.jsx
-import React from 'react'
-import { Routes, Route } from 'react-router-dom'
+import React, { useContext } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import Home from './pages/Home'
 import Collection from './pages/Collection'
 import About from './pages/About'
@@ -15,28 +15,117 @@ import Footer from './components/Footer'
 import SearchBar from './components/SearchBar'
 import { ToastContainer } from 'react-toastify'
 import Verify from './pages/Verify'
+import ProtectedRoute from './components/ProtectedRoute'
+import { ShopContext } from './context/ShopContext'
+import 'react-toastify/dist/ReactToastify.css'
+import Profile from './pages/Profile'
 
 export const backendUrl = 'http://your-backend-url.com' // Define backend URL here
 
 function App() {
+  const { token } = useContext(ShopContext)
+
   return (
     <div className="px-4 sm:px-[7vw] lg:px-[9vw]">
       <ToastContainer />
-      <Navbar />
-      <SearchBar />
+      {token && <Navbar />}
+      {token && <SearchBar />}
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/collection" element={<Collection />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/products/:productId" element={<Product />} />
-        <Route path="/cart" element={<Cart />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/place-order" element={<PlaceOrder />} />
-        <Route path="/order" element={<Orders />} />
-        <Route path="/verify" element={<Verify />} />
+        {/* Public Routes */}
+        <Route 
+          path="/login" 
+          element={token ? <Navigate to="/" replace /> : <Login />} 
+        />
+
+        {/* Protected Routes */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Home />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/collection"
+          element={
+            <ProtectedRoute>
+              <Collection />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/about"
+          element={
+            <ProtectedRoute>
+              <About />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/contact"
+          element={
+            <ProtectedRoute>
+              <Contact />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/:productId"
+          element={
+            <ProtectedRoute>
+              <Product />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cart"
+          element={
+            <ProtectedRoute>
+              <Cart />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/place-order"
+          element={
+            <ProtectedRoute>
+              <PlaceOrder />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/order"
+          element={
+            <ProtectedRoute>
+              <Orders />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/verify"
+          element={
+            <ProtectedRoute>
+              <Verify />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Catch all route - redirect to login if not authenticated, home if authenticated */}
+        <Route 
+          path="*" 
+          element={token ? <Navigate to="/" replace /> : <Navigate to="/login" replace />} 
+        />
       </Routes>
-      <Footer />
+      {token && <Footer />}
     </div>
   )
 }

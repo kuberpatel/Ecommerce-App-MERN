@@ -1,11 +1,12 @@
 import { createContext, useEffect, useState } from "react";
-import {toast} from "react-toastify";
+import { toast } from "react-toastify";
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios'
 
-export const ShopContext = createContext();
+// Create the context outside of the provider component
+export const ShopContext = createContext(null);
 
-const ShopContextProvider = (props) => {
+const ShopContextProvider = ({ children }) => {
   const currency = '$';
   const delivery_fee = 10;
   const backendUrl = import.meta.env.VITE_BACKEND_URL
@@ -15,6 +16,7 @@ const ShopContextProvider = (props) => {
   const [products, setProducts] = useState([]);
   const [token,setToken] = useState('');
   const navigate = useNavigate();
+  const [isInitialized, setIsInitialized] = useState(false)
 
   const addToCart = async (itemId, size) => {
     if(!size){
@@ -24,7 +26,7 @@ const ShopContextProvider = (props) => {
     let cartData = JSON.parse(JSON.stringify(cartItems));
     
     if (!cartData[itemId]) {
-      cartData[itemId] = {}; // Initialize if not exists
+      cartData[itemId] = {};
     }
     
     if (cartData[itemId][size]) {
@@ -36,14 +38,19 @@ const ShopContextProvider = (props) => {
     setCartItems(cartData);
     if (token) {
       try {
-         await axios.post(backendUrl + '/api/cart/add', {itemId,size}, {headers:{token}})
-        
+        await axios.post(
+          `${backendUrl}/api/cart/add`, 
+          {itemId, size}, 
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        );
       } catch (error) {
-        console.log(error)
-        toast.error(error.message)
-        
+        console.error(error);
+        toast.error(error.message);
       }
-      
     }
   };
 
@@ -65,12 +72,18 @@ const ShopContextProvider = (props) => {
     setCartItems(cartData);
     if(token){
       try {
-        await axios.post(backendUrl + '/api/cart/update', {itemId,size,quantity}, {headers:{token}})
-        
+        await axios.post(
+          `${backendUrl}/api/cart/update`, 
+          {itemId, size, quantity}, 
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        );
       } catch (error) {
-         console.log(error)
-         toast.error(error.message)
-        
+        console.error(error);
+        toast.error(error.message);
       }
     }
   }
@@ -110,36 +123,43 @@ const ShopContextProvider = (props) => {
     }
   }
 
-  const getUserCart = async token => {
+  const getUserCart = async (savedToken) => {
     try {
       const response = await axios.post(
-        `${backendUrl}/api/cart/get`, // ✅ proper URL
+        `${backendUrl}/api/cart/get`,
         {},
-        { headers: { token } },
-      )
+        { 
+          headers: { 
+            Authorization: `Bearer ${savedToken}`
+          }
+        }
+      );
       if (response.data.success) {
-        setCartItems(response.data.cartData)
+        setCartItems(response.data.cartData);
       }
     } catch (error) {
-      console.log(error)
-      toast.error(error.message)
+      console.error(error);
+      toast.error('Error loading cart');
     }
-  }
-
+  };
 
   useEffect(()=>{
     getProductData()
   },[])
 
-  useEffect(()=>{
-     const savedToken = localStorage.getItem('token')
-    if(!token && localStorage.getItem('token')){
-      setToken(localStorage.getItem('token'))
-       getUserCart(savedToken);
+  useEffect(() => {
+    const savedToken = localStorage.getItem('token')
+    if (savedToken) {
+      setToken(savedToken)
     }
-  },[])
+    setIsInitialized(true)
+  }, [])
 
-
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem('token', token)
+    }
+  }, [token])
 
   const value = {
     products,
@@ -161,9 +181,13 @@ const ShopContextProvider = (props) => {
     setCartItems,
   }
 
+  if (!isInitialized) {
+    return <div>Loading...</div>
+  }
+
   return (
     <ShopContext.Provider value={value}>
-      {props.children}
+      {children}
     </ShopContext.Provider>
   );
 };

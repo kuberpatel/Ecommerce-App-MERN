@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react'
 import { ShopContext } from '../context/ShopContext'
 import Title from '../components/Title'
 import axios from 'axios'
+import { toast } from 'react-toastify'
 
 function Orders() {
   const { backendUrl, token, currency } = useContext(ShopContext)
@@ -13,7 +14,15 @@ function Orders() {
         return null
       }
 
-      const response = await axios.post(backendUrl + '/api/order/userorders',{},{headers:{token}})
+      const response = await axios.post(
+        `${backendUrl}/api/order/userorders`,
+        {},
+        {
+          headers: { 
+            Authorization: `Bearer ${token}`
+          }
+        }
+      )
      if (response.data.success) {
        let allOrdersItem = []
        response.data.orders.map(order => {
@@ -28,7 +37,10 @@ function Orders() {
 
        setorderData(allOrdersItem.reverse())
      }
-    } catch (error) {}
+    } catch (error) {
+      console.error(error)
+      toast.error('Error loading orders')
+    }
   }
 
   useEffect(() => {

@@ -17,6 +17,7 @@ function PlaceOrder() {
     getCartAmount,
     delivery_fee,
     products,
+    setToken,
   } = useContext(ShopContext)
 
   const [formData, setFormData] = useState({
@@ -54,7 +55,7 @@ function PlaceOrder() {
               razorpay_order_id: res.razorpay_order_id,
               razorpay_signature: res.razorpay_signature,
             },
-            { headers: { token } },
+            { headers: { Authorization: `Bearer ${token}` } },
           )
 
           if (verifyRes.data.success) {
@@ -77,6 +78,12 @@ function PlaceOrder() {
   const onSubmitHandler = async event => {
     event.preventDefault()
     try {
+      if (!token) {
+        toast.error('Please login to place order')
+        navigate('/login')
+        return
+      }
+
       let orderItems = []
       for (const items in cartItems) {
         for (const item in cartItems[items]) {
@@ -105,12 +112,22 @@ function PlaceOrder() {
           const response = await axios.post(
             `${backendUrl}/api/order/place`,
             orderData,
-            { headers: { token } },
+            { 
+              headers: { 
+                Authorization: `Bearer ${token}`
+              }
+            }
           )
           if (response.data.success) {
             setCartItems({})
             navigate('/order')
+            toast.success('Order placed successfully!')
           } else {
+            if (response.data.message === 'Not Authorized Login Again') {
+              localStorage.removeItem('token')
+              setToken('')
+              navigate('/login')
+            }
             toast.error(response.data.message)
           }
           break
@@ -120,7 +137,7 @@ function PlaceOrder() {
           const responseStripe = await axios.post(
             `${backendUrl}/api/order/stripe`,
             orderData,
-            { headers: { token } },
+            { headers: { Authorization: `Bearer ${token}` } },
           )
           if (responseStripe.data.success) {
             const { session_url } = responseStripe.data
@@ -135,7 +152,7 @@ function PlaceOrder() {
           const responseRazorpay = await axios.post(
             `${backendUrl}/api/order/razorpay`,
             orderData,
-            { headers: { token } },
+            { headers: { Authorization: `Bearer ${token}` } },
           )
 
           if (responseRazorpay.data.success) {
@@ -147,7 +164,7 @@ function PlaceOrder() {
         }
       }
     } catch (error) {
-      console.log('Order Error:', error)
+      console.error('Order Error:', error)
       toast.error('Something went wrong!')
     }
   }
