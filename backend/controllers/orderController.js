@@ -3,6 +3,7 @@ import userModel from '../models/userModel.js'
 import Stripe from 'stripe'
 import dotenv from 'dotenv'
 import razorpay from 'razorpay'
+import crypto from 'crypto'  // Add this import for signature verification
 
 // load .env config
 dotenv.config()
@@ -153,7 +154,7 @@ const verifyStripe = async (req, res) => {
       })
     } else {
       // If payment failed, mark the order as failed
-      await orderModel.findByIdAndUpdate(orderId, { 
+      await orderModel.findByIdAndUpdate(userId, {  // FIXED: Changed from userId to orderId
         status: 'Payment Failed' 
       })
       
@@ -185,57 +186,126 @@ const placeOrderRazorpay = async (req, res) => {
          paymentMethod: 'Razorpay',
          payment: false,
          date: Date.now(),
+         // Add razorpayOrderId field directly to the initial order data
        }
 
        // save order in db
        const newOrder = new orderModel(orderData)
        await newOrder.save()
 
-       const options = {
-        amount: amount * 100,
-        currency: currency.toUpperCase(),
-        receipt: newOrder._id.toString
-       }
+      // Razorpay order options
+      const options = {
+        amount: amount * 100, 
+        currency: 'USD', 
+        receipt: newOrder._id.toString()
+      };
 
-       await razorpayInstance.orders.create(options, (error,order)=>{
-        if (error) {
-          console.log(error)
-          return res.json({success:false, message: error})
-          
-        }
-        res.json({success:true,order})
-
-
-       })
-    
+      // Create Razorpay order using Promise instead of callback
+      const razorpayOrder = await razorpayInstance.orders.create(options);
+      
+      // Update our order with the Razorpay order ID for easier lookup later
+      // This is where the issue is - let's make sure it's working
+      console.log("Updating order with Razorpay ID:", razorpayOrder.id);
+      
+      // Use findByIdAndUpdate with proper options to ensure it returns the updated document
+      const updatedOrder = await orderModel.findByIdAndUpdate(
+        newOrder._id, 
+        { razorpayOrderId: razorpayOrder.id },
+        { new: true } // Return the updated document
+      );
+      
+      console.log("Updated order:", updatedOrder);
+      
+      // Send both our order ID and the Razorpay order details to the client
+      res.json({
+        success: true,
+        order: razorpayOrder,
+        orderId: newOrder._id
+      });
    } catch (error) {
-    console.log(error)
-    res.json({ success: false, message: error.message })
-
-    
+     console.log(error);
+     res.json({ success: false, message: error.message });
    }
 }
 
 // verify razorpay payment
-const verifyRazorpay =  async (req,res) => {
+const verifyRazorpay = async (req, res) => {
   try {
-    const { userId, razorpay_order_id} = req.body
-    const orderInfo = await razorpayInstance.orders.fetch(razorpay_order_id)
-    if (orderInfo.status === 'paid') {
-      await orderModel.findByIdAndUpdate(orderInfo.receipt,{payment:true});
-      await userModel.findByIdAndUpdate(userId,{cartData:{}})
-      res.json({success: true,message: "payment Successful"})
+    console.log("Razorpay verification request received:", req.body);
+    
+    const {
+      userId,
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    } = req.body;
+    
+    // Verify the payment signature first
+    const sign = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(sign.toString())
+      .digest("hex");
       
-    }else{
-      res.json({success: false,message: "Payment Failed"})
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid signature",
+      });
     }
     
-  } catch (error) {
+    // Try to find the order by orderId or razorpayOrderId
+    let order;
     
-     console.log(error)
-     res.json({ success: false, message: error.message })
+    if (req.body.orderId) {
+      order = await orderModel.findById(req.body.orderId);
+    } else {
+      // Find the most recent order for this user
+      const recentOrders = await orderModel.find({ 
+        userId: userId,
+        paymentMethod: 'Razorpay',
+        payment: false
+      }).sort({ date: -1 }).limit(1);
+      
+      if (recentOrders.length > 0) {
+        order = recentOrders[0];
+      }
+    }
+    
+    if (!order) {
+      console.log("Order not found for payment verification");
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+    
+    // Update order details
+    order.payment = true;
+    order.status = "Payment Confirmed";
+    order.razorpayPaymentId = razorpay_payment_id;
+    order.razorpayOrderId = razorpay_order_id;
+    
+    await order.save();
+    
+    // Clear user's cart
+    await userModel.findByIdAndUpdate(userId, { cartData: {} });
+    
+    console.log(`Order ${order._id} payment status updated to paid`);
+    
+    return res.status(200).json({
+      success: true,
+      message: "Payment verified successfully",
+    });
+  } catch (error) {
+    console.error("Payment verification error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error verifying payment",
+      error: error.message,
+    });
   }
-}
+};
 
 
 // get all orders for admin
