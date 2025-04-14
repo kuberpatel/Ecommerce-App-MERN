@@ -112,11 +112,11 @@ function PlaceOrder() {
           const response = await axios.post(
             `${backendUrl}/api/order/place`,
             orderData,
-            { 
-              headers: { 
-                Authorization: `Bearer ${token}`
-              }
-            }
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            },
           )
           if (response.data.success) {
             setCartItems({})
@@ -139,12 +139,14 @@ function PlaceOrder() {
             orderData,
             { headers: { Authorization: `Bearer ${token}` } },
           )
+
           if (responseStripe.data.success) {
             const { session_url } = responseStripe.data
             window.location.replace(session_url)
           } else {
             toast.error(responseStripe.data.message)
           }
+
           break
         }
 
